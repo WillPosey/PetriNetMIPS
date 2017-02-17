@@ -2,11 +2,17 @@
 
 #define ALL_COMPLETE 2
 
+#define DAM_FILENAME "datamemory.txt"
+#define INM_FILENAME "instructions.txt"
+#define RGF_FILENAME "registers.txt"
+
 #include <thread>
 #include <chrono>
 #include <string>
 #include <mutex>
 #include <iostream>
+#include <fstream>
+#include <cstdlib>
 
 using namespace std;
 
@@ -137,10 +143,10 @@ bool CheckExecutionComplete()
 /**************************/
 struct InstructionString
 {
-    string opcode;
-    string destReg;
-    string srcReg1;
-    string srcReg2;
+    string opcode = "";
+    string destReg = "";
+    string srcReg1 = "";
+    string srcReg2 = "";
 
     string ToString()
     {
@@ -154,10 +160,10 @@ struct InstructionString
 /**************************/
 struct InstructionDecode
 {
-    string opcode;
-    int destRegNum;
-    int srcReg1Num;
-    int srcReg2Num;
+    string opcode = "";
+    int destRegNum = 0;
+    int srcReg1Num = 0;
+    int srcReg2Num = 0;
 
     string ToString()
     {
@@ -171,21 +177,21 @@ struct InstructionDecode
 /**************************/
 struct MemoryValue
 {
-    int location;
-    int value;
+    int location = 0;
+    int value = 0;
 
     string ToString()
     {
-        return "<" + to_string(location) + ","
-                   + to_string(value) + ">";
+        return "<" + to_string(this->location) + ","
+                   + to_string(this->value) + ">";
     }
 };
 
 /**************************/
 struct RegisterValue
 {
-    int regNum;
-    int value;
+    int regNum = 0;
+    int value = 0;
 
     string ToString()
     {
@@ -226,18 +232,11 @@ template <class In, class Out>
 class Buffer
 {
 public:
-    Buffer(thread_func_ptr thrPtr) : thread_func(thrPtr){ isEmpty = true; Initialize(); StartThread();};
+    Buffer(thread_func_ptr thrPtr) : thread_func(thrPtr){isEmpty = true; StartThread();};
+
     /******************************************/
-    bool Empty()
-    {
-        if(isEmpty)
-        {
-            readLock.lock();
-            hasRead = true;
-            readLock.unlock();
-        }
-        return isEmpty;
-    }
+    bool Empty() { return isEmpty; }
+
     /******************************************/
     void NoWrite()
     {
@@ -254,6 +253,13 @@ public:
         hasWritten = true;
         tempInput = writeInput;
         writeLock.unlock();
+    }
+    /******************************************/
+    void NoRead()
+    {
+        readLock.lock();
+        hasRead = true;
+        readLock.unlock();
     }
     /******************************************/
     Out Read()
@@ -301,7 +307,7 @@ protected:
         return writeCmplt;
     }
 
-    virtual void Initialize(){};
+    virtual void Initialize() = 0;
     virtual void StartThread(){thread = new CycleThread(thread_func, (void*) this);};
     virtual Out ReadData() = 0;
     virtual Out TestRead() = 0;
@@ -328,6 +334,9 @@ private:
     InstructionDecode currentInstr;
 
     /******************************************/
+    void Initialize() {}
+
+    /******************************************/
     InstructionDecode ReadData() {return currentInstr;}
 
     /******************************************/
@@ -344,13 +353,13 @@ void* thread_LIB(void* object)
     while(1)
     {
         while(!CheckClockRisingEdge())
-            this_thread::sleep_for(chrono::milliseconds(5));
+            this_thread::sleep_for(chrono::milliseconds(1));
         SetClocked();
 
 dbg(LIB->GetContent());
 
         while(!CheckClockFallingEdge())
-            this_thread::sleep_for(chrono::milliseconds(5));
+            this_thread::sleep_for(chrono::milliseconds(1));
         SetCycleComplete();
         if(CheckExecutionComplete())
             break;
@@ -377,6 +386,9 @@ private:
     InstructionDecode currentInstr;
 
     /******************************************/
+    void Initialize() {}
+
+    /******************************************/
     InstructionDecode ReadData() {return currentInstr;}
 
     /******************************************/
@@ -393,13 +405,13 @@ void* thread_AIB(void* object)
     while(1)
     {
         while(!CheckClockRisingEdge())
-            this_thread::sleep_for(chrono::milliseconds(5));
+            this_thread::sleep_for(chrono::milliseconds(1));
         SetClocked();
 
 dbg(AIB->GetContent());
 
         while(!CheckClockFallingEdge())
-            this_thread::sleep_for(chrono::milliseconds(5));
+            this_thread::sleep_for(chrono::milliseconds(1));
         SetCycleComplete();
         if(CheckExecutionComplete())
             break;
@@ -412,7 +424,7 @@ class InstructionBuffer : public Buffer<InstructionDecode, InstructionDecode>
 {
 public:
     friend void* thread_INB(void* object);
-    InstructionBuffer() : Buffer(thread_INB){}
+    InstructionBuffer() : Buffer(thread_INB){Initialize();}
 
     string GetContent()
     {
@@ -456,13 +468,13 @@ void* thread_INB(void* object)
     while(1)
     {
         while(!CheckClockRisingEdge())
-            this_thread::sleep_for(chrono::milliseconds(5));
+            this_thread::sleep_for(chrono::milliseconds(1));
         SetClocked();
 
 dbg(INB->GetContent());
 
         while(!CheckClockFallingEdge())
-            this_thread::sleep_for(chrono::milliseconds(5));
+            this_thread::sleep_for(chrono::milliseconds(1));
         SetCycleComplete();
         if(CheckExecutionComplete())
             break;
@@ -489,6 +501,9 @@ private:
     RegisterValue currentAddress;
 
     /******************************************/
+    void Initialize() {}
+
+    /******************************************/
     RegisterValue ReadData() {return currentAddress;}
 
     /******************************************/
@@ -505,13 +520,13 @@ void* thread_ADB(void* object)
     while(1)
     {
         while(!CheckClockRisingEdge())
-            this_thread::sleep_for(chrono::milliseconds(5));
+            this_thread::sleep_for(chrono::milliseconds(1));
         SetClocked();
 
 dbg(ADB->GetContent());
 
         while(!CheckClockFallingEdge())
-            this_thread::sleep_for(chrono::milliseconds(5));
+            this_thread::sleep_for(chrono::milliseconds(1));
         SetCycleComplete();
         if(CheckExecutionComplete())
             break;
@@ -524,27 +539,61 @@ class DataMemory : public Buffer<MemoryValue, MemoryValue>
 {
 public:
     friend void* thread_DAM(void* object);
-    DataMemory() : Buffer(thread_DAM){}
+    DataMemory() : Buffer(thread_DAM){Initialize();}
 
     string GetContent()
     {
-        if(!isEmpty)
-            return "DAM:" + currentAddress.ToString();
-        else
-            return "DAM:";
+        string content = "DAM:";
+        for(int i=0; i<8; i++)
+        {
+            content += dataMem[i].ToString();
+            if(i!=7)
+                content += ",";
+        }
+        return content;
     }
+
+    void SetLocation(int location) {currentLocation = location;}
 
 private:
     MemoryValue dataMem[8];
+    int currentLocation;
 
     /******************************************/
-    RegisterValue ReadData() {return currentAddress;}
+    void Initialize()
+    {
+        string line;
+        ifstream damFile (DAM_FILENAME);
+        if(damFile.is_open())
+        {
+            for(int i=0; i<8; i++)
+            {
+                getline(damFile, line);
+                dataMem[i].location = i;
+                dataMem[i].value = atoi(line.substr(3,line.length()-4).c_str());
+            }
+            damFile.close();
+        }
+        else
+        {
+            cout << "Error: Could not read data memory file" << endl;
+            for(int i=0; i<8; i++)
+            {
+                dataMem[i].location = i;
+                dataMem[i].value = 0;
+            }
+        }
+        isEmpty = false;
+    }
 
     /******************************************/
-    void WriteData() {currentAddress = tempInput;}
+    MemoryValue ReadData() {return dataMem[currentLocation];}
 
     /******************************************/
-    RegisterValue TestRead() {return ReadData();}
+    MemoryValue TestRead() {return ReadData();}
+
+    /******************************************/
+    void WriteData() {}
 };
 
 /******************************************/
@@ -555,13 +604,285 @@ void* thread_DAM(void* object)
     while(1)
     {
         while(!CheckClockRisingEdge())
-            this_thread::sleep_for(chrono::milliseconds(5));
+            this_thread::sleep_for(chrono::milliseconds(1));
         SetClocked();
 
 dbg(DAM->GetContent());
 
         while(!CheckClockFallingEdge())
-            this_thread::sleep_for(chrono::milliseconds(5));
+            this_thread::sleep_for(chrono::milliseconds(1));
+        SetCycleComplete();
+        if(CheckExecutionComplete())
+            break;
+    }
+}
+
+/******************************************************************************************/
+void* thread_RGF(void* object);
+class RegisterFile : public Buffer<RegisterValue, RegisterValue*>
+{
+public:
+    friend void* thread_RGF(void* object);
+    RegisterFile() : Buffer(thread_RGF){Initialize();}
+
+    string GetContent()
+    {
+        string content = "RGF:";
+        for(int i=0; i<8; i++)
+        {
+            content += registers[i].ToString();
+            if(i!=7)
+                content += ",";
+        }
+        return content;
+    }
+
+    bool RegistersAvailable(int regNum1, int regNum2)
+    {
+        SetCurrentRegisters(regNum1, regNum2);
+        return regAvail[regNum1] && regAvail[regNum2];
+    }
+
+    void SetCurrentRegisters(int regNum1, int regNum2) {readReg1 = regNum1; readReg2 = regNum2;}
+    void SetWriteRegister(int writeRegNum) {writeReg = writeRegNum;}
+
+private:
+    RegisterValue registers[8];
+    bool regAvail[8];
+    int readReg1, readReg2;
+    int writeReg;
+
+    /******************************************/
+    void Initialize()
+    {
+        string line;
+        ifstream damFile (RGF_FILENAME);
+        if(damFile.is_open())
+        {
+            for(int i=0; i<8; i++)
+            {
+                getline(damFile, line);
+                registers[i].regNum = i;
+                registers[i].value = atoi(line.substr(4,line.length()-5).c_str());
+            }
+            damFile.close();
+        }
+        else
+        {
+            cout << "Error: Could not read register file" << endl;
+            for(int i=0; i<8; i++)
+            {
+                registers[i].regNum = i;
+                registers[i].value = 0;
+            }
+        }
+        isEmpty = false;
+    }
+
+    /******************************************/
+    RegisterValue* ReadData()
+    {
+        RegisterValue* reg = new RegisterValue[2];
+        reg[0] = registers[0];
+        reg[1] = registers[1];
+        if(!regAvail[0])
+            reg[0].value = -1;
+        if(!regAvail[1])
+            reg[1].value = -1;
+        return reg;
+    }
+
+    /******************************************/
+    RegisterValue* TestRead() {return ReadData();}
+
+    /******************************************/
+    void WriteData() {registers[writeReg] = (RegisterValue)tempInput;}
+};
+
+/******************************************/
+void* thread_RGF(void* object)
+{
+    RegisterFile* RGF = (RegisterFile*) object;
+
+    while(1)
+    {
+        while(!CheckClockRisingEdge())
+            this_thread::sleep_for(chrono::milliseconds(1));
+        SetClocked();
+
+dbg(RGF->GetContent());
+
+        while(!CheckClockFallingEdge())
+            this_thread::sleep_for(chrono::milliseconds(1));
+        SetCycleComplete();
+        if(CheckExecutionComplete())
+            break;
+    }
+}
+
+/******************************************************************************************/
+void* thread_REB(void* object);
+class ResultBuffer : public Buffer<RegisterValue*, RegisterValue>
+{
+public:
+    friend void* thread_REB(void* object);
+    ResultBuffer() : Buffer(thread_REB){Initialize();}
+
+    string GetContent()
+    {
+        string content = "REB:";
+        for(int i=head; i<numResults; i++)
+        {
+            content += results[i].ToString();
+            if(i!=(head+numResults-1))
+                content += ",";
+        }
+        return content;
+    }
+
+    int GetCount() {return numResults;}
+
+private:
+    RegisterValue results[16];
+    int head;
+    int numResults;
+
+    /******************************************/
+    void Initialize()
+    {
+        head = numResults = 0;
+    }
+
+    /******************************************/
+    RegisterValue ReadData()
+    {
+        RegisterValue result = results[head];
+        head++;
+        numResults--;
+        return result;
+    }
+
+    /******************************************/
+    RegisterValue TestRead() {return results[head];}
+
+    /******************************************/
+    void WriteData()
+    {
+        RegisterValue* temp = (RegisterValue*)tempInput;// guaranteed to have a value (both empty, call to NoWrite)
+        results[head+numResults] = temp[0];// guaranteed to have a value (both empty, call to NoWrite)
+        numResults++;
+        if(temp[1].regNum >= 0) // could be empty
+        {
+            results[head+numResults] = temp[1];
+            numResults++;
+        }
+    }
+};
+
+/******************************************/
+void* thread_REB(void* object)
+{
+    ResultBuffer* REB = (ResultBuffer*) object;
+
+    while(1)
+    {
+        while(!CheckClockRisingEdge())
+            this_thread::sleep_for(chrono::milliseconds(1));
+        SetClocked();
+
+dbg(REB->GetContent());
+
+        while(!CheckClockFallingEdge())
+            this_thread::sleep_for(chrono::milliseconds(1));
+        SetCycleComplete();
+        if(CheckExecutionComplete())
+            break;
+    }
+}
+
+/******************************************************************************************/
+void* thread_INM(void* object);
+class InstructionMemory : public Buffer<InstructionString, InstructionString>
+{
+public:
+    friend void* thread_INM(void* object);
+    InstructionMemory() : Buffer(thread_INM){Initialize();}
+
+    string GetContent()
+    {
+        string content = "INM:";
+        for(int i=head; i<numInstr; i++)
+        {
+            content += instructions[i].ToString();
+            if(i!=(head+numInstr-1))
+                content += ",";
+        }
+        return content;
+    }
+
+private:
+    InstructionString instructions[16];
+    int head;
+    int numInstr;
+
+    /******************************************/
+    void Initialize()
+    {
+        string line;
+        ifstream inmFile (INM_FILENAME);
+        head = numInstr = 0;
+        if(inmFile.is_open())
+        {
+            while(getline(inmFile,line))
+            {
+                size_t firstComma = line.find_first_of(',');
+                size_t secondComma = line.find(',',firstComma+1);
+                size_t thirdComma = line.find(',',secondComma+1);
+                size_t endLine = line.find('>');
+                instructions[head+numInstr].opcode = line.substr(1,firstComma-1);
+                instructions[head+numInstr].destReg = line.substr(firstComma+1,secondComma-(firstComma+1));
+                instructions[head+numInstr].srcReg1 = line.substr(secondComma+1,thirdComma-(secondComma+1));
+                instructions[head+numInstr].srcReg2 = line.substr(thirdComma+1,endLine-(thirdComma+1));
+                numInstr++;
+            }
+        }
+        else
+            cout << "Error: Could not read register file" << endl;
+        isEmpty = false;
+    }
+
+    /******************************************/
+    InstructionString ReadData()
+    {
+        InstructionString instr = instructions[head];
+        head++;
+        if(head > numInstr)
+            isEmpty = true;
+        return instr;
+    }
+
+    /******************************************/
+    InstructionString TestRead() {return instructions[head];}
+
+    /******************************************/
+    void WriteData() {}
+};
+
+/******************************************/
+void* thread_INM(void* object)
+{
+    InstructionMemory* INM = (InstructionMemory*) object;
+
+    while(1)
+    {
+        while(!CheckClockRisingEdge())
+            this_thread::sleep_for(chrono::milliseconds(1));
+        SetClocked();
+
+dbg(INM->GetContent());
+
+        while(!CheckClockFallingEdge())
+            this_thread::sleep_for(chrono::milliseconds(1));
         SetCycleComplete();
         if(CheckExecutionComplete())
             break;
@@ -582,14 +903,34 @@ protected:
 /******************************************************************************************/
 int main()
 {
+    //Buffers
+    InstructionMemory INM;
     LoadInstrBuffer LIB;
     ArithInstrBuffer AIB;
     InstructionBuffer INB;
     AddressBuffer ADB;
+    DataMemory DAM;
+    RegisterFile RGF;
+    ResultBuffer REB;
+
+    //Transitions
+    //DecodeReadTransition DR;
+    //Issue1Transition ISSUE1;
+    //Issue2Transition ISSUE2;
+    //AddrTransition ADDR;
+    //AluTransition ALU;
+    //LoadTransition LOAD;
+    //WriteTransition WRITE;
 
     for(int i=0; i<5; i++)
     {
         // Check if last cycle, if so notify threads to exit
+        /*if(INM.Empty() && LIB.Empty() && AIB.Empty() &&
+             INB.Empty() && ADB.Empty() && DAM.Empty() &&
+             RGF.Empty() && REB.GetCount() == 1
+            )
+                SetExecutionComplete();
+        */
         if(i==(numCycles-1))
             SetExecutionComplete();
 
@@ -598,14 +939,14 @@ int main()
 
         // Wait for clock to be registered
         while(!CheckClocked())
-            this_thread::sleep_for(chrono::milliseconds(5));
+            this_thread::sleep_for(chrono::milliseconds(1));
 
         // Clock falling edge
         SetClockEdge(false);
 
         // Wait for each thread to complete its loop and register the falling clock edge
         while(!CheckCycleComplete())
-            this_thread::sleep_for(chrono::milliseconds(5));
+            this_thread::sleep_for(chrono::milliseconds(1));
 
         // Reset globals
         cycleComplete = false;
@@ -613,10 +954,22 @@ int main()
     }
 
     // Join all threads
+    INM.Join();
     LIB.Join();
     AIB.Join();
     INB.Join();
     ADB.Join();
+    DAM.Join();
+    RGF.Join();
+    REB.Join();
+    //DR.Join();
+    //ISSUE1.Join();
+    //ISSUE2.Join();
+    //ADDR.Join();
+    //ALU.Join();
+    //LOAD.Join();
+    //WRITE.Join();
+
 
     return 0;
 }
