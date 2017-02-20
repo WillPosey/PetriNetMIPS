@@ -389,10 +389,8 @@ void* thread_LIB(void* object)
             this_thread::sleep_for(chrono::milliseconds(1));
         SetClocked();
 
-
-        /* Uncomment after implementing ADDR */
-        //while(!LIB->ReadComplete())
-            //this_thread::sleep_for(chrono::milliseconds(1));
+        while(!LIB->ReadComplete())
+            this_thread::sleep_for(chrono::milliseconds(1));
 
         while(!LIB->WriteComplete())
             this_thread::sleep_for(chrono::milliseconds(1));
@@ -929,8 +927,8 @@ void* thread_REB(void* object)
             this_thread::sleep_for(chrono::milliseconds(1));
         SetClocked();
 
-        //while(!REB->ReadComplete())
-            //this_thread::sleep_for(chrono::milliseconds(1));
+        while(!REB->ReadComplete())
+            this_thread::sleep_for(chrono::milliseconds(1));
 
         while(!REB->WriteComplete())
             this_thread::sleep_for(chrono::milliseconds(1));
@@ -1181,7 +1179,6 @@ private:
         if(!INB_Empty && correctType)
         {
             decodedInstruction = INB.Read();
-            //cout << "Issue1 writing: " << decodedInstruction.ToString() << endl;
             AIB.Write(decodedInstruction);
         }
         else
@@ -1253,7 +1250,6 @@ private:
         if(!INB_Empty && correctType)
         {
             decodedInstruction = INB.Read();
-            //cout << "Issue2 writing: " << decodedInstruction.ToString() << endl;
             LIB.Write(decodedInstruction);
         }
         else
@@ -1452,13 +1448,13 @@ private:
             operand1 = instruction.srcReg1Num;
             operand2 = instruction.srcReg2Num;
             if(op.compare(ADD_op) == 0)
-                result = operand1 + operand2;
+                result = (unsigned) (operand1 + operand2);
             else if(op.compare(SUB_op) == 0)
-                result = operand1 - operand2;
+                result = (unsigned) (operand1 - operand2);
             else if(op.compare(AND_op) == 0)
-                result = operand1 & operand2;
+                result = (unsigned) (operand1 & operand2);
             else if(op.compare(OR_op) == 0)
-                result = operand1 | operand2;
+                result = (unsigned) (operand1 | operand2);
             registerResult.regNum = instruction.destRegNum;
             registerResult.value = result;
         }
@@ -1584,7 +1580,6 @@ int main()
     bool lastStep = false;
     ofstream outfile (SIM_FILENAME);
 
-    //for(int i=0; i<numCycles; i++)
     while(!lastStep)
     {
         // Check if last cycle, if so notify threads to exit
