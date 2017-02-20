@@ -1,5 +1,3 @@
-#define DEBUG
-
 #define ALL_COMPLETE 15
 
 #define DAM_FILENAME "datamemory.txt"
@@ -38,8 +36,6 @@ void* thread_ADDR(void* object);
 void* thread_LOAD(void* object);
 void* thread_ALU(void* object);
 void* thread_WRITE(void* object);
-
-int numCycles = 10;
 
 /*************** Locks and Access functions for Clocking Cycles ***************/
 
